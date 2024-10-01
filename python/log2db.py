@@ -9,10 +9,6 @@ from flask import Flask, render_template_string, request, jsonify
 import threading
 import time
 
-# Ändere das Verzeichnis zu deinem Arbeitsverzeichnis
-os.chdir('C:/Users/z004cefs/OneDrive - Siemens AG/Dokumente/GitHub/factorio_data_logger_mod/python')
-print("Current working directory:", os.getcwd())
-
 # Datenbank und Log-Datei beim Start löschen, falls sie existieren
 def cleanup_files():
     if os.path.exists('production.db'):
