@@ -213,7 +213,7 @@ def update_index():
 
 
 if __name__ == '__main__':
-    a = 0
+    m = 0
     # Datenbank und Log-Datei beim Start löschen
     cleanup_files()
 
@@ -224,10 +224,10 @@ if __name__ == '__main__':
     # Starte den Thread zum Aktualisieren der Datenbank
     threading.Thread(target=update_index, daemon=True).start()
 
-    if a < 1:
+    if m < 1:
         # Öffne automatisch die URL im Standardbrowser
         webbrowser.open('http://127.0.0.1:5000')
-        a = 1
+        m = 1
 
     # Flask-App starten
     app.run()
