@@ -3,7 +3,7 @@
 -- Event, das jede Sekunde aufgerufen wird
 script.on_event(defines.events.on_tick, function(event)
     -- Überprüfe, ob 60 Ticks vergangen sind (etwa 1 Sekunde)
-    if event.tick % 30 == 0 then
+    if event.tick % 60 == 0 then
         local force = game.forces["player"] -- "player" ist die Standard-Fraktion
         local production_stats = force.item_production_statistics
 
