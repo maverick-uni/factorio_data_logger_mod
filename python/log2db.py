@@ -80,6 +80,7 @@ def insert_data_from_log():
         print(f"Datei {file_path} wurde nach mehreren Versuchen nicht gefunden.")
 
 
+
 # Funktion zum Aktualisieren der Datenbank mit neuen Log-Einträgen
 def update_database():
     conn = sqlite3.connect('production.db')
