@@ -16,6 +16,21 @@ def cleanup_files():
     if os.path.exists('production_log.txt'):
         os.remove('production_log.txt')
 
+def wait_for_file(file_path, retries=5, delay=2):
+    """
+    Warten auf die Existenz der Datei mit wiederholten Versuchen.
+    :param file_path: Pfad zur Datei
+    :param retries: Anzahl der Wiederholungsversuche
+    :param delay: Wartezeit zwischen den Versuchen (in Sekunden)
+    """
+    for _ in range(retries):
+        if os.path.exists(file_path):
+            return True
+        print(f"Warte auf Datei: {file_path}. Versuche erneut in {delay} Sekunden.")
+        time.sleep(delay)
+    return False
+
+
 # Erstellen einer SQLite-Datenbank und einer Tabelle für die Produktion
 def create_database():
     conn = sqlite3.connect('production.db')
@@ -34,40 +49,36 @@ def create_database():
 
 # Funktion zum Einfügen der Daten aus production_log.txt in die Datenbank
 def insert_data_from_log():
-    conn = sqlite3.connect('production.db')
-    c = conn.cursor()
+    file_path = 'production_log.txt'
+    if wait_for_file(file_path):  # Warten, bis die Datei existiert
+        conn = sqlite3.connect('production.db')
+        c = conn.cursor()
+        # Datei existiert, weiter mit dem Einfügen der Daten
+        with open(file_path, 'r') as file:
+            for line in file:
+                try:
+                    parts = line.strip().split()
+                    if len(parts) < 3:
+                        print(f"Skipping invalid line: {line}")
+                        continue
+                    timestamp = parts[0].split(':')[1]
+                    item_data = parts[1].split('=')
+                    item = item_data[0]
+                    produced = int(parts[2].split('i:')[1])
+                    used = int(parts[3].split('o:')[1])
+                    c.execute('''
+                        INSERT INTO production_log (timestamp, item, produced, used)
+                        VALUES (?, ?, ?, ?)
+                    ''', (timestamp, item, produced, used))
+                except IndexError as e:
+                    print(f"Error processing line: {line} - {e}")
+                except ValueError as e:
+                    print(f"Error processing values in line: {line} - {e}")
+        conn.commit()
+        conn.close()
+    else:
+        print(f"Datei {file_path} wurde nach mehreren Versuchen nicht gefunden.")
 
-    # Überprüfen, ob die Datei existiert
-    if not os.path.exists('production_log.txt'):
-        print("production_log.txt existiert nicht.")
-        return
-
-    with open('production_log.txt', 'r') as file:
-        for line in file:
-            try:
-                parts = line.strip().split()
-                if len(parts) < 3:
-                    print(f"Skipping invalid line: {line}")
-                    continue
-
-                timestamp = parts[0].split(':')[1]
-                item_data = parts[1].split('=')
-                item = item_data[0]
-                produced = int(parts[2].split('i:')[1])
-                used = int(parts[3].split('o:')[1])
-
-                c.execute('''
-                    INSERT INTO production_log (timestamp, item, produced, used) 
-                    VALUES (?, ?, ?, ?)
-                ''', (timestamp, item, produced, used))
-
-            except IndexError as e:
-                print(f"Error processing line: {line} - {e}")
-            except ValueError as e:
-                print(f"Error processing values in line: {line} - {e}")
-
-    conn.commit()
-    conn.close()
 
 # Funktion zum Aktualisieren der Datenbank mit neuen Log-Einträgen
 def update_database():
@@ -87,13 +98,23 @@ def update_database():
                 produced = int(parts[2].split('i:')[1])
                 used = int(parts[3].split('o:')[1])
 
-                # Prüfe, ob der Datensatz bereits vorhanden ist
-                c.execute('SELECT COUNT(*) FROM production_log WHERE timestamp = ? AND item = ?', (timestamp, item))
-                if c.fetchone()[0] == 0:
-                    c.execute('''
-                        INSERT INTO production_log (timestamp, item, produced, used)
-                        VALUES (?, ?, ?, ?)
-                    ''', (timestamp, item, produced, used))
+                # Überprüfen, wie viele verschiedene Timestamps vorhanden sind
+                c.execute('SELECT COUNT(DISTINCT timestamp) FROM production_log')
+                timestamp_count = c.fetchone()[0]
+
+                if timestamp_count >= 6:
+                    # Finde den kleinsten Timestamp
+                    c.execute('SELECT MIN(timestamp) FROM production_log')
+                    min_timestamp = c.fetchone()[0]
+
+                    # Lösche alle Einträge mit dem kleinsten Timestamp
+                    c.execute('DELETE FROM production_log WHERE timestamp = ?', (min_timestamp,))
+
+                # Füge den neuen Eintrag hinzu
+                c.execute('INSERT INTO production_log (timestamp, item, produced, used) VALUES (?, ?, ?, ?)',
+                          (timestamp, item, produced, used))
+
+
 
     conn.commit()
     conn.close()
@@ -129,95 +150,110 @@ def index():
     html_template = '''
     <!DOCTYPE html>
     <html>
-    <head>
-        <title>Production Log</title>
-        <style>
-            .red { background-color: #ffcccc; }
-        </style>
-        <script>
-            function fetchGraph(item) {
-                fetch(`/fetch_graph?item=${item}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        const imgElement = document.getElementById('graph_img');
-                        imgElement.src = 'data:image/png;base64,' + data.graph_url;
+<head>
+    <title>Produktionsprotokoll</title>
+    <style>
+        .red { background-color: #ffcccc; }
+    </style>
+    <script>
+        function fetchGraph(item) {
+            fetch(`/fetch_graph?item=${item}`)
+                .then(response => response.json())
+                .then(data => {
+                    const imgElement = document.getElementById('graph_img');
+                    imgElement.src = 'data:image/png;base64,' + data.graph_url;
+                });
+        }
+
+        function fetchTable(item = '') {
+            fetch(`/fetch_table?item=${item}`)
+                .then(response => response.json())
+                .then(data => {
+                    const tableBody = document.getElementById('table_body');
+                    tableBody.innerHTML = '';
+                    data.forEach(row => {
+                        const tr = document.createElement('tr');
+                        const available = row[3] - row[4];  // Verfügbarer Bestand berechnen
+                        tr.innerHTML = `
+                            <td>${row[0]}</td>
+                            <td>${row[1]}</td>
+                            <td>${row[2]}</td>
+                            <td>${row[3]}</td>
+                            <td class="${row[4] > row[3] ? 'red' : ''}">${row[4]}</td>
+                            <td>${available}</td>  <!-- Verfügbarer Bestand anzeigen -->
+                        `;
+                        tableBody.appendChild(tr);
                     });
-            }
+                });
+        }
 
-            function fetchTable() {
-                fetch(`/fetch_table`)
-                    .then(response => response.json())
-                    .then(data => {
-                        const tableBody = document.getElementById('table_body');
-                        tableBody.innerHTML = '';
-                        data.forEach(row => {
-                            const tr = document.createElement('tr');
-                            tr.innerHTML = `
-                                <td>${row[0]}</td>
-                                <td>${row[1]}</td>
-                                <td>${row[2]}</td>
-                                <td>${row[3]}</td>
-                                <td class="${row[4] > row[3] ? 'red' : ''}">${row[4]}</td>
-                            `;
-                            tableBody.appendChild(tr);
-                        });
-                    });
-            }
+        function autoFetchGraphAndTable() {
+            const selectElementGraph = document.getElementById('item_graph');
+            const selectElementTable = document.getElementById('item_table');
+            fetchGraph(selectElementGraph.value);
+            fetchTable(selectElementTable.value);
+            setTimeout(autoFetchGraphAndTable, 5000);  // Alle 5 Sekunden aktualisieren
+        }
 
-            function autoFetchGraphAndTable() {
-                const selectElement = document.getElementById('item');
-                fetchGraph(selectElement.value);
-                fetchTable();
-                setTimeout(autoFetchGraphAndTable, 5000);  // Alle 5 Sekunden aktualisieren
-            }
+        window.onload = autoFetchGraphAndTable;  // Starte die automatische Aktualisierung beim Laden der Seite
+    </script>
+</head>
+<body>
+    <h1>Produktionsdaten</h1>
+    <!-- Dropdown zur Auswahl eines Items für den Graph -->
+    <form method="POST" onsubmit="fetchGraph(document.getElementById('item_graph').value); fetchTable(document.getElementById('item_table').value); return false;">
+        <label for="item_graph">Wähle ein Item für den Graphen:</label>
+        <select name="item_graph" id="item_graph" onchange="fetchGraph(this.value);">
+            <option value="">Alle</option>  <!-- Option für alle Items -->
+            {% for item in items %}
+            <option value="{{ item }}" {% if item == selected_item %}selected{% endif %}>{{ item }}</option>
+            {% endfor %}
+        </select>
+        <input type="submit" value="Zeige Graph">
+    </form>
+    <h2>Graph für {{ selected_item }}</h2>
+    <img id="graph_img" src="" alt="Graph wird hier angezeigt">
 
-            window.onload = autoFetchGraphAndTable;  // Starte die automatische Aktualisierung beim Laden der Seite
-        </script>
-    </head>
-    <body>
-        <h1>Production Data</h1>
-
-        <!-- Dropdown zur Auswahl eines Items -->
-        <form method="POST" onsubmit="fetchGraph(document.getElementById('item').value); return false;">
-            <label for="item">Select Item:</label>
-            <select name="item" id="item" onchange="fetchGraph(this.value)">
-                {% for item in items %}
-                <option value="{{ item }}" {% if item == selected_item %}selected{% endif %}>{{ item }}</option>
-                {% endfor %}
-            </select>
-            <input type="submit" value="Show Graph">
-        </form>
-
-        <h2>Graph for {{ selected_item }}</h2>
-        <img id="graph_img" src="" alt="Graph will be displayed here">
-
-        <h2>Production Data Table</h2>
-        <table border="1">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Timestamp</th>
-                    <th>Item</th>
-                    <th>Produced</th>
-                    <th>Used</th>
-                </tr>
-            </thead>
-            <tbody id="table_body">
-                {% for row in data %}
-                <tr>
-                    <td>{{ row[0] }}</td>
-                    <td>{{ row[1] }}</td>
-                    <td>{{ row[2] }}</td>
-                    <td>{{ row[3] }}</td>
-                    <td class="{% if row[4] > row[3] %}red{% endif %}">{{ row[4] }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </body>
-    </html>
+    <!-- Dropdown zur Auswahl eines Items für die Produktionstabelle -->
+    <form method="POST" onsubmit="fetchTable(document.getElementById('item_table').value); return false;">
+        <label for="item_table">Wähle ein Item für die Tabelle:</label>
+        <select name="item_table" id="item_table" onchange="fetchTable(this.value);">
+            <option value="">Alle</option>  <!-- Option für alle Items -->
+            {% for item in items %}
+            <option value="{{ item }}" {% if item == selected_item %}selected{% endif %}>{{ item }}</option>
+            {% endfor %}
+        </select>
+        <input type="submit" value="Zeige Tabelle">
+    </form>
+    <h2>Produktionsdatentabelle</h2>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Zeitstempel</th>
+                <th>Item</th>
+                <th>Produziert</th>
+                <th>Verbraucht</th>
+                <th>Verfügbar</th>  <!-- Neue Spalte für verfügbaren Bestand -->
+            </tr>
+        </thead>
+        <tbody id="table_body">
+            {% for row in data %}
+            <tr>
+                <td>{{ row[0] }}</td>
+                <td>{{ row[1] }}</td>
+                <td>{{ row[2] }}</td>
+                <td>{{ row[3] }}</td>
+                <td class="{% if row[4] > row[3] %}red{% endif %}">{{ row[4] }}</td>
+                <td>{{ row[3] - row[4] }}</td>  <!-- Verfügbarer Bestand anzeigen -->
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
     '''
-    
+
     return render_template_string(html_template, data=data, items=items, selected_item=selected_item)
 
 @app.route('/fetch_graph', methods=['GET'])
@@ -257,20 +293,22 @@ def fetch_graph():
 
 @app.route('/fetch_table', methods=['GET'])
 def fetch_table():
+    item = request.args.get('item', '')  # Abrufen des ausgewählten Items
     conn = sqlite3.connect('production.db')
     c = conn.cursor()
-
-    # Gesamte Produktionsdaten abrufen
-    c.execute('SELECT * FROM production_log ORDER BY timestamp DESC')
+    # Daten filtern basierend auf dem ausgewählten Item
+    if item:
+        c.execute('SELECT * FROM production_log WHERE item = ? ORDER BY timestamp DESC', (item,))
+    else:
+        c.execute('SELECT * FROM production_log ORDER BY timestamp DESC')
     data = c.fetchall()
     conn.close()
-    
     return jsonify(data)
 
 if __name__ == '__main__':
     # Datenbank und Log-Datei beim Start löschen
     cleanup_files()
-    
+
     # Datenbank erstellen und initiale Daten einfügen
     create_database()
     insert_data_from_log()
