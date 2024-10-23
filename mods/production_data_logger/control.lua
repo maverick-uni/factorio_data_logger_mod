@@ -166,8 +166,9 @@ script.on_event(defines.events.on_tick, function(event)
         for _, item in ipairs(items) do
             local produced = production_stats.get_flow_count{name=item, input=true, precision_index=defines.flow_precision_index.one_minute}
             local used = production_stats.get_flow_count{name=item, input=false, precision_index=defines.flow_precision_index.one_minute}
-            
-            game.write_file("production_log.txt", "t:" .. event.tick .. " " .. item .. "= i:" .. produced .. " o:" .. used .. "\n", true)
+            local available = produced - used  -- Berechnung des verfügbaren Bestands
+            game.write_file("production_log.txt", "t:" .. event.tick .. " " .. item .. "= i:" .. produced .. " o:" .. used .. " a:" .. available .. "\n", true)
         end
     end
 end)
+
