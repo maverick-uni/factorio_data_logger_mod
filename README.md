@@ -8,4 +8,4 @@ C:/user/username/Appdata/Roaming/Factorio/
 
 der Inhalt von diesem Repository muss an der Stelle eingfügt werden.
 
-Zum starten der Mod muss abschließend das Python Skript log2db.py ausgeführt werden.
+Zum starten der Mod muss abschließend das Python Skript log2db.py ausgeführt werden, dieses befindet sich im Ordner script-output.
