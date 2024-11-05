@@ -230,7 +230,6 @@ def index():
             </form>
         </div>
         <div style="text-align: center;">
-            <h2>Graph for {{ selected_item }}</h2>
             <img id="graph_img" src="" alt="Graph will be displayed here" style="width:70%; border: 1px solid #555;">
         </div>
         <div style="text-align: center;">
