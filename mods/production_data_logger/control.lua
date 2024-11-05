@@ -63,8 +63,7 @@ script.on_event(defines.events.on_tick, function(event)
             "wood",
             "wooden-chest"
         }
-        
-<<<<<<< HEAD
+            
         for i = 1, #items do
             local item = items[i]
             local produced = production_stats.get_flow_count{name=item, category="input", precision_index=defines.flow_precision_index.one_minute}
@@ -72,13 +71,6 @@ script.on_event(defines.events.on_tick, function(event)
             
             -- Schreibe die Produktionsdaten in die Datei
             helpers.write_file("production_log.txt", "t:" .. event.tick .. " " .. item .. "= i:" .. produced .. " o:" .. used .. "\n", true)
-=======
-        for _, item in ipairs(items) do
-            local produced = production_stats.get_flow_count{name=item, input=true, precision_index=defines.flow_precision_index.one_minute}
-            local used = production_stats.get_flow_count{name=item, input=false, precision_index=defines.flow_precision_index.one_minute}
-            local available = produced - used  -- Berechnung des verfügbaren Bestands
-            game.write_file("production_log.txt", "t:" .. event.tick .. " " .. item .. "= i:" .. produced .. " o:" .. used .. " a:" .. available .. "\n", true)
->>>>>>> f9e944d6e9037bd7aa9b38e12e4a060b8d38e0a1
         end
         
     end
