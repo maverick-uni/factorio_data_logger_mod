@@ -167,7 +167,14 @@ def index():
     <head>
         <title>Production Log</title>
         <style>
-            .red { background-color: #ffcccc; }
+            body { background-color: #1D1D1D; color: #CCCCCC; }
+            table { width: 80%; margin-left: auto; margin-right: auto; border-collapse: collapse; }
+            th, td { border: 1px solid #444444; padding: 10px; text-align: center; }
+            th { background-color: #2E2E2E; color: #F0F0F0; }
+            tr:nth-child(even) { background-color: #2A2A2A; }
+            tr:nth-child(odd) { background-color: #1E1E1E; }
+            .red { background-color: #FF4500; color: white; }
+            select { background-color: #333333; color: white; }
         </style>
         <script>
             function fetchGraph(item) {
@@ -210,45 +217,47 @@ def index():
         </script>
     </head>
     <body>
-        <h1>Production Data</h1>
-
-        <!-- Dropdown zur Auswahl eines Items -->
-        <form method="POST" onsubmit="fetchGraph(document.getElementById('item').value); return false;">
-            <label for="item">Select Item:</label>
-            <select name="item" id="item" onchange="fetchGraph(this.value)">
-                {% for item in items %}
-                <option value="{{ item }}" {% if item == selected_item %}selected{% endif %}>{{ item }}</option>
-                {% endfor %}
-            </select>
-            <input type="submit" value="Show Graph">
-        </form>
-
-        <h2>Graph for {{ selected_item }}</h2>
-        <img id="graph_img" src="" alt="Graph will be displayed here">
-
-        <h2>Production Data Table</h2>
-        <table border="1">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Timestamp</th>
-                    <th>Item</th>
-                    <th>Produced</th>
-                    <th>Used</th>
-                </tr>
-            </thead>
-            <tbody id="table_body">
-                {% for row in data %}
-                <tr>
-                    <td>{{ row[0] }}</td>
-                    <td>{{ row[1] }}</td>
-                    <td>{{ row[2] }}</td>
-                    <td>{{ row[3] }}</td>
-                    <td class="{% if row[4] > row[3] %}red{% endif %}">{{ row[4] }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <h1 style="text-align: center;">Production Data</h1>
+        <div style="text-align: center;">
+            <form method="POST" onsubmit="fetchGraph(document.getElementById('item').value); return false;">
+                <label for="item">Select Item:</label>
+                <select name="item" id="item" onchange="fetchGraph(this.value)">
+                    {% for item in items %}
+                    <option value="{{ item }}" {% if item == selected_item %}selected{% endif %}>{{ item }}</option>
+                    {% endfor %}
+                </select>
+                <input type="submit" value="Show Graph">
+            </form>
+        </div>
+        <div style="text-align: center;">
+            <h2>Graph for {{ selected_item }}</h2>
+            <img id="graph_img" src="" alt="Graph will be displayed here" style="width:70%; border: 1px solid #555;">
+        </div>
+        <div style="text-align: center;">
+            <h2>Production Data Table</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Timestamp</th>
+                        <th>Item</th>
+                        <th>Produced</th>
+                        <th>Used</th>
+                    </tr>
+                </thead>
+                <tbody id="table_body">
+                    {% for row in data %}
+                    <tr>
+                        <td>{{ row[0] }}</td>
+                        <td>{{ row[1] }}</td>
+                        <td>{{ row[2] }}</td>
+                        <td>{{ row[3] }}</td>
+                        <td class="{% if row[4] > row[3] %}red{% endif %}">{{ row[4] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </body>
     </html>
     '''
@@ -285,22 +294,20 @@ def fetch_graph():
 
     # Erstelle den Graphen
     plt.figure(figsize=(10, 6))
-    plt.plot(timestamps, produced_values, label='Produced', marker='o', color='blue')
-    plt.plot(timestamps, used_values, label='Used', marker='o', color='red')
-
-    # Achsenbeschriftungen und Titel
-    plt.xlabel('Timestamp')
-    plt.ylabel('Amount')
-    plt.title(f'Production vs. Usage for {item}')
-
-    # Grid aktivieren
-    plt.grid(True)
+    plt.plot(timestamps, produced_values, label='Produced', marker='o', color='#1E90FF')  # Blau für Produktion
+    plt.plot(timestamps, used_values, label='Used', marker='o', color='#FF4500')  # Rot für Verbrauch
+    plt.xlabel('Timestamp', color='white')
+    plt.ylabel('Amount', color='white')
+    plt.title(f'Production vs. Usage for {item}', color='white')
+    plt.grid(True, color='#3A3A3A')  # Dunkle Rasterlinien
 
     # Legend hinzufügen
     plt.legend()
 
-    # Rotieren der X-Achsen-Ticks für bessere Lesbarkeit
-    plt.xticks(rotation=45, ha='right')
+    plt.xticks(rotation=45, ha='right', color='white')
+    plt.yticks(color='white')
+    plt.gca().set_facecolor('#282828')  # Dunkler Plot-Hintergrund
+    plt.gcf().set_facecolor('#1D1D1D')  # Dunkler allgemeiner Hintergrund
 
     # Speichere das Bild in einem base64-String, um es direkt in HTML einzubinden
     img = io.BytesIO()
@@ -349,4 +356,4 @@ if __name__ == '__main__':
     threading.Timer(1, lambda: webbrowser.open("http://127.0.0.1:5000")).start()
 
     # Starte die Flask-App
-    app.run(debug=True)
+    app.run(debug=False)
