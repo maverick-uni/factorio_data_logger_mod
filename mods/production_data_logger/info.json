@@ -1,6 +1,6 @@
 {
   "name": "production_data_logger",
-  "version": "0.0.5",
+  "version": "2.0.0",
   "title": "Production Data Logger",
   "author": "Ben, Lisa, Maverick",
   "description": "Loggt Produktionsdaten und speichert sie in einer Datenbank.",
